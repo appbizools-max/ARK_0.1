@@ -1,0 +1,286 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../hooks/useAuth';
+import {
+    TrendingUp,
+    TrendingDown,
+    DollarSign,
+    Plus,
+    Filter,
+    Loader2,
+    ArrowUpRight,
+    ArrowDownLeft,
+    FileText
+} from 'lucide-react';
+
+interface Transaction {
+    transaction_id: string;
+    project_name: string;
+    type: 'credit' | 'debit';
+    amount: string;
+    category: string;
+    description: string;
+    transaction_date: string;
+    recorded_by: string;
+}
+
+interface Project {
+    project_id: string;
+    project_name: string;
+}
+
+export const Finance: React.FC = () => {
+    const { user } = useAuth();
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showModal, setShowModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    const [formData, setFormData] = useState({
+        project_id: '',
+        type: 'credit',
+        amount: '',
+        category: 'advance',
+        description: '',
+        date: new Date().toISOString().split('T')[0],
+        recorded_by: user?.user_id || ''
+    });
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const [transRes, projRes] = await Promise.all([
+                axios.get('http://localhost/ARK/api/finance'),
+                axios.get('http://localhost/ARK/api/projects')
+            ]);
+            setTransactions(transRes.data.data);
+            setProjects(projRes.data.data);
+        } catch (err) {
+            console.error('Failed to fetch finance data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            const response = await axios.post('http://localhost/ARK/api/finance', formData);
+            if (response.data.success) {
+                setShowModal(false);
+                setFormData({ ...formData, amount: '', description: '' });
+                fetchData();
+            }
+        } catch (err) {
+            alert('Error recording transaction');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const totalCredit = transactions
+        .filter(t => t.type === 'credit')
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+    const totalDebit = transactions
+        .filter(t => t.type === 'debit')
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+    return (
+        <div className="finance-page">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#253b50' }}>Finance & Accounts</h2>
+                    <p style={{ color: '#6b7280' }}>Manage project budgets, advances and site expenses</p>
+                </div>
+                <button
+                    onClick={() => setShowModal(true)}
+                    className="btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                    <Plus size={18} />
+                    Record Transaction
+                </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                <div className="premium-card" style={{ borderLeft: '6px solid #10b981' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '4px' }}>Cash In (Advances)</p>
+                            <h4 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>₹{totalCredit.toLocaleString()}</h4>
+                        </div>
+                        <div style={{ backgroundColor: '#d1fae5', color: '#10b981', padding: '10px', borderRadius: '12px' }}>
+                            <TrendingUp size={24} />
+                        </div>
+                    </div>
+                </div>
+                <div className="premium-card" style={{ borderLeft: '6px solid #ef4444' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '4px' }}>Cash Out (Expenses)</p>
+                            <h4 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ef4444' }}>₹{totalDebit.toLocaleString()}</h4>
+                        </div>
+                        <div style={{ backgroundColor: '#fee2e2', color: '#ef4444', padding: '10px', borderRadius: '12px' }}>
+                            <TrendingDown size={24} />
+                        </div>
+                    </div>
+                </div>
+                <div className="premium-card" style={{ borderLeft: '6px solid #253b50' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '4px' }}>Net Balance</p>
+                            <h4 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#1f2937' }}>₹{(totalCredit - totalDebit).toLocaleString()}</h4>
+                        </div>
+                        <div style={{ backgroundColor: '#f3f4f6', color: '#1f2937', padding: '10px', borderRadius: '12px' }}>
+                            <DollarSign size={24} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="premium-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontSize: '1.3rem' }}>Transaction History</h3>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+                            <Filter size={16} /> Filter
+                        </button>
+                        <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+                            <FileText size={16} /> Export
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb', textAlign: 'left' }}>
+                                <th style={{ padding: '16px', color: '#6b7280', fontWeight: 500 }}>Transaction</th>
+                                <th style={{ padding: '16px', color: '#6b7280', fontWeight: 500 }}>Project</th>
+                                <th style={{ padding: '16px', color: '#6b7280', fontWeight: 500 }}>Date</th>
+                                <th style={{ padding: '16px', color: '#6b7280', fontWeight: 500 }}>Category</th>
+                                <th style={{ padding: '16px', color: '#6b7280', fontWeight: 500, textAlign: 'right' }}>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px' }}><Loader2 className="animate-spin" style={{ margin: '0 auto' }} /></td></tr>
+                            ) : transactions.map((t) => (
+                                <tr key={t.transaction_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                    <td style={{ padding: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{
+                                                backgroundColor: t.type === 'credit' ? '#d1fae5' : '#fee2e2',
+                                                color: t.type === 'credit' ? '#065f46' : '#991b1b',
+                                                padding: '8px',
+                                                borderRadius: '8px'
+                                            }}>
+                                                {t.type === 'credit' ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: 600 }}>{t.description || (t.type === 'credit' ? 'Client Payment' : 'Site Expense')}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>ID: TXN-{t.transaction_id}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '16px' }}>{t.project_name || 'General'}</td>
+                                    <td style={{ padding: '16px', fontSize: '0.85rem' }}>{new Date(t.transaction_date).toLocaleDateString()}</td>
+                                    <td style={{ padding: '16px', fontSize: '0.85rem', textTransform: 'capitalize' }}>{t.category.replace('_', ' ')}</td>
+                                    <td style={{ padding: '16px', fontWeight: 700, textAlign: 'right', color: t.type === 'credit' ? '#10b981' : '#ef4444' }}>
+                                        {t.type === 'credit' ? '+' : '-'} ₹{parseFloat(t.amount).toLocaleString()}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {showModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="premium-card" style={{ width: '100%', maxWidth: '550px' }}>
+                        <h3 style={{ marginBottom: '24px', fontSize: '1.4rem' }}>Record Transaction</h3>
+                        <form onSubmit={handleSubmit}>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', padding: '4px', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, type: 'credit', category: 'advance' })}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: 'none', backgroundColor: formData.type === 'credit' ? 'white' : 'transparent', fontWeight: 600, boxShadow: formData.type === 'credit' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+                                >
+                                    Payment Received
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, type: 'debit', category: 'material' })}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: 'none', backgroundColor: formData.type === 'debit' ? 'white' : 'transparent', fontWeight: 600, boxShadow: formData.type === 'debit' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+                                >
+                                    Expense / Payment Paid
+                                </button>
+                            </div>
+
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 500 }}>Project</label>
+                                <select required value={formData.project_id} onChange={(e) => setFormData({ ...formData, project_id: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                                    <option value="">Specific Project (Optional)</option>
+                                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 500 }}>Amount (₹)</label>
+                                    <input type="number" required value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 500 }}>Category</label>
+                                    <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
+                                        {formData.type === 'credit' ? (
+                                            <>
+                                                <option value="advance">Advance Payment</option>
+                                                <option value="milestone_payment">Milestone Payment</option>
+                                                <option value="final_payment">Final Settlement</option>
+                                                <option value="retention">Retention</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="material">Material Purchase</option>
+                                                <option value="vendor_payment">Vendor Payment</option>
+                                                <option value="labor_wages">Labor Wages</option>
+                                                <option value="site_petty_cash">Site Petty Cash</option>
+                                                <option value="consultancy">Consultancy Fees</option>
+                                            </>
+                                        )}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 500 }}>Transaction Date</label>
+                                <input type="date" required value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }} />
+                            </div>
+
+                            <div style={{ marginBottom: '24px' }}>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', fontWeight: 500 }}>Description / Notes</label>
+                                <textarea rows={2} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db' }} />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: 'white' }}>Cancel</button>
+                                <button type="submit" disabled={submitting} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {submitting && <Loader2 className="animate-spin" size={16} />}
+                                    Record {formData.type === 'credit' ? 'Payment' : 'Expense'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
